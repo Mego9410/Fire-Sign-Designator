@@ -11,9 +11,11 @@ import { SettingsPanel } from './ui/SettingsPanel';
 import { loadAutosave, saveAutosave } from './ui/storage';
 
 type Tab = 'signs' | 'catalogue' | 'settings';
+/** Which screen is showing on phones (on desktop all three columns are visible). */
+type MobileView = 'plan' | 'floors' | 'panel';
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
-  { id: 'select', label: 'Select', hint: 'Click to select, drag to move. Drag empty space to pan; scroll to zoom. Click a dashed “Stair?” box to accept it.' },
+  { id: 'select', label: 'Select', hint: 'Tap or click to select, drag to move. Drag empty space to pan; pinch or scroll to zoom. Tap a dashed “Stair?” box to accept it.' },
   { id: 'exit', label: 'Final exit', hint: 'Click in the doorway of each final exit to the street (usually on the ground floor).' },
   { id: 'stair', label: 'Stair', hint: 'Click on the stair landing. Use the same stair letter on every floor it serves so floors link up.' },
   { id: 'wall', label: 'Draw wall', hint: 'Paint over walls the detector missed (e.g. glazed screens or hatched walls) or to block a route.' },
@@ -32,6 +34,8 @@ export default function App() {
   const [overlays, setOverlays] = useState<Record<string, FloorOverlay>>({});
   const [tool, setTool] = useState<Tool>('select');
   const [tab, setTab] = useState<Tab>('signs');
+  const [mview, setMView] = useState<MobileView>('plan');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [stairId, setStairId] = useState('A');
   const [signKind, setSignKind] = useState<SignKind>('ahead');
   const [brushMm, setBrushMm] = useState(200);
@@ -63,6 +67,13 @@ export default function App() {
     const t = setTimeout(() => saveAutosave(project), 800);
     return () => clearTimeout(t);
   }, [project]);
+
+  // Success messages clear themselves; warnings stay until dismissed.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 7000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const update = useCallback((fn: (p: Project) => Project, undoable = true) => {
     setProject((p) => {
@@ -126,6 +137,7 @@ export default function App() {
       const added = await importFiles([...files], start, setBusy);
       update((p) => ({ ...p, floors: [...p.floors, ...added] }));
       if (added[0]) setFloorId(added[0].id);
+      setMView('plan');
       setNotice(`Added ${added.length} floor${added.length === 1 ? '' : 's'}. Check each floor’s level and scale, then draw an analysis area around the building.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -141,6 +153,7 @@ export default function App() {
     setProject({ ...newProject(), name: 'Example office – 2 storeys', floors: fl });
     setFloorId(fl[0].id);
     setSelectedId(null);
+    setMView('plan');
     setNotice('Example loaded: the final exit and Stair A are already marked. Press “Analyse & place signs”.');
   }
 
@@ -216,14 +229,15 @@ export default function App() {
   const step = !project.floors.length ? 1 : project.floors.some((f) => !f.mmPerPx) ? 2 : !project.floors.some((f) => f.exits.length) ? 3 : grandTotal ? 5 : 4;
 
   return (
-    <div className="app">
+    <div className="app" data-mview={mview}>
       <header className="top">
         <div className="brand">
           <img src="./brand/8build-logo-dark.jpeg" alt="8build" className="logo" />
           <span className="product">Fire Sign Designator</span>
         </div>
         <input className="project-name" value={project.name} onChange={(e) => update((p) => ({ ...p, name: e.target.value }), false)} aria-label="Project name" />
-        <div className="actions">
+        <button className="menu-btn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>{menuOpen ? 'Close' : 'Menu'}</button>
+        <div className={`actions ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)}>
           <button className="ghost" onClick={loadExample}>Load example</button>
           <button className="ghost" onClick={() => projectInput.current?.click()}>Open</button>
           <button className="ghost" onClick={() => saveProject(project)} disabled={!project.floors.length}>Save</button>
@@ -307,6 +321,7 @@ export default function App() {
 
       <main className="centre">
         <div className="toolbar">
+          <div className="tools">
           {TOOLS.map((t) => (
             <button key={t.id} className={tool === t.id ? 'on' : ''} onClick={() => setTool(t.id)} title={t.hint} disabled={!floor}>{t.label}</button>
           ))}
@@ -333,8 +348,8 @@ export default function App() {
               </select>
             </label>
           )}
-          <span className="grow" />
-          <button className="primary" onClick={analyse} disabled={!project.floors.length || !!busy}>Analyse &amp; place signs</button>
+          </div>
+          <button className="primary analyse" onClick={analyse} disabled={!project.floors.length || !!busy}><span className="long">Analyse &amp; place signs</span><span className="short">Analyse</span></button>
         </div>
         <div className="hintbar">{TOOLS.find((t) => t.id === tool)?.hint}</div>
         <div className="canvas-wrap">
@@ -372,6 +387,22 @@ export default function App() {
             </div>
           )}
           {busy && <div className="busy"><div className="spinner" />{busy}</div>}
+          {(notice || error) && (
+            <div className="toast mobile-only" onClick={() => { setNotice(null); setError(null); }}>
+              {error ? <div className="error">{error.split('\n')[0]}{error.includes('\n') ? ' (+ more)' : ''}</div> : <div className="notice">{notice}</div>}
+            </div>
+          )}
+          {floor && (selectedSign || selectedExit || selectedStair) && (
+            <div className="sel-bar mobile-only">
+              <span>
+                {selectedSign ? <><b>{signLabel(floor, orderedSigns(floor).findIndex((s) => s.id === selectedSign.id))}</b> {SIGN_KIND_LABEL[selectedSign.kind].replace(/ \(.*\)/, '')}</> : selectedExit ? <b>Final exit</b> : <b>Stair {selectedStair!.stairId}</b>}
+              </span>
+              {selectedSign && <button className="small" onClick={() => rotateSelected(-45)} aria-label="Rotate anticlockwise">⟲</button>}
+              {selectedSign && <button className="small" onClick={() => rotateSelected(45)} aria-label="Rotate clockwise">⟳</button>}
+              <button className="small" onClick={() => { setTab('signs'); setMView('panel'); }}>Edit</button>
+              <button className="small danger" onClick={deleteSelected}>Delete</button>
+            </div>
+          )}
         </div>
         <div className="layers">
           {(Object.keys(layers) as (keyof Layers)[]).map((k) => (
@@ -474,7 +505,7 @@ export default function App() {
                 <h3>{floor.name} – signs</h3>
                 <ul className="sign-list">
                   {orderedSigns(floor).map((s, i) => (
-                    <li key={s.id} className={s.id === selectedId ? 'active' : ''} onClick={() => { setSelectedId(s.id); setTool('select'); }}>
+                    <li key={s.id} className={s.id === selectedId ? 'active' : ''} onClick={() => { setSelectedId(s.id); setTool('select'); setMView('plan'); }}>
                       <span className="ref">{signLabel(floor, i)}</span>
                       <span className="glyph" style={{ background: BRAND.green }}>{GLYPH[s.kind]}</span>
                       <span className="desc">{SIGN_KIND_LABEL[s.kind].replace(/ \(.*\)/, '')}<small>{productFor(project, s)?.code ?? '—'} · {s.mount}</small></span>
@@ -503,6 +534,18 @@ export default function App() {
           />
         )}
       </aside>
+
+      <nav className="mobile-nav" aria-label="Screens">
+        {([
+          ['plan', null, 'Plan'],
+          ['floors', null, 'Floors'],
+          ['panel', 'signs', `Signs${grandTotal ? ` (${grandTotal})` : ''}`],
+          ['panel', 'catalogue', 'Catalogue'],
+          ['panel', 'settings', 'Settings'],
+        ] as [MobileView, Tab | null, string][]).map(([v, t, label]) => (
+          <button key={label} className={mview === v && (!t || tab === t) ? 'on' : ''} onClick={() => { setMView(v); if (t) setTab(t); }}>{label}</button>
+        ))}
+      </nav>
     </div>
   );
 }

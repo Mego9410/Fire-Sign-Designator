@@ -26,7 +26,9 @@ type Drag =
   | { kind: 'move'; id: string; dx: number; dy: number; moved: boolean }
   | { kind: 'stroke'; mode: 'wall' | 'erase'; points: Pt[] }
   | { kind: 'crop'; a: Pt; b: Pt }
-  | { kind: 'scale'; a: Pt; b: Pt };
+  | { kind: 'scale'; a: Pt; b: Pt }
+  | { kind: 'tap'; q: Pt; sx: number; sy: number }
+  | { kind: 'pinch'; d0: number; mx: number; my: number; v0: View };
 
 const ICON = 26;
 
@@ -40,6 +42,8 @@ export function PlanCanvas(p: Props) {
   const [cursor, setCursor] = useState<Pt | null>(null);
   const [hoverSug, setHoverSug] = useState(-1);
   const fitted = useRef<string | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const touch = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -138,7 +142,7 @@ export function PlanCanvas(p: Props) {
       for (const q of [a, b]) { ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, Math.PI * 2); ctx.fillStyle = BRAND.red; ctx.fill(); }
       ctx.restore();
     }
-    if (cursor && (p.tool === 'wall' || p.tool === 'erase')) {
+    if (cursor && !touch.current && (p.tool === 'wall' || p.tool === 'erase')) {
       const c2 = S(cursor);
       ctx.save();
       ctx.strokeStyle = p.tool === 'wall' ? BRAND.red : '#08f';
@@ -152,7 +156,7 @@ export function PlanCanvas(p: Props) {
   const brushPx = () => (p.floor.mmPerPx ? p.brushMm / 2 / p.floor.mmPerPx : 4);
 
   const hit = (q: Pt): string | null => {
-    const r = (ICON * 0.8) / view.scale;
+    const r = (ICON * (touch.current ? 1.3 : 0.8)) / view.scale;
     const d = (a: Pt) => Math.hypot(a.x - q.x, a.y - q.y);
     for (const s of [...p.floor.signs].reverse()) if (d(s.p) < r) return s.id;
     for (const e of p.floor.exits) if (d(e.p) < r * 0.7) return e.id;
@@ -163,28 +167,18 @@ export function PlanCanvas(p: Props) {
   const posOf = (id: string): Pt | null =>
     p.floor.signs.find((s) => s.id === id)?.p ?? p.floor.exits.find((s) => s.id === id)?.p ?? p.floor.stairs.find((s) => s.id === id)?.p ?? null;
 
-  const onDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture(e.pointerId);
-    const q = toSrc(e);
-    if (e.button === 1 || e.button === 2 || e.shiftKey && p.tool === 'select') {
-      setDrag({ kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
-      return;
-    }
+  const local = (e: { clientX: number; clientY: number }) => {
+    const r = canvas.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
+  const startPinch = () => {
+    const [a, b] = [...pointers.current.values()];
+    setDrag({ kind: 'pinch', d0: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, v0: view });
+  };
+
+  const place = (q: Pt) => {
     switch (p.tool) {
-      case 'select': {
-        const id = hit(q);
-        if (id) {
-          const at = posOf(id)!;
-          p.onSelect(id);
-          setDrag({ kind: 'move', id, dx: q.x - at.x, dy: q.y - at.y, moved: false });
-        } else {
-          const sg = p.overlay?.stairSuggestions.findIndex((s) => inside(q, s.box) && !p.floor.stairs.some((st) => inside(st.p, grow(s.box, Math.max(s.box.w, s.box.h) * 0.3)))) ?? -1;
-          if (sg >= 0 && p.layers.markers) { p.onAcceptStair(p.overlay!.stairSuggestions[sg].center); return; }
-          p.onSelect(null);
-          setDrag({ kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
-        }
-        break;
-      }
       case 'exit': {
         const id = uid('x');
         p.onChange((f) => ({ ...f, exits: [...f.exits, { id, p: q }] }));
@@ -208,6 +202,45 @@ export function PlanCanvas(p: Props) {
         p.onSelect(id);
         break;
       }
+    }
+  };
+
+  const onDown = (e: React.PointerEvent) => {
+    (e.target as Element).setPointerCapture(e.pointerId);
+    touch.current = e.pointerType === 'touch';
+    pointers.current.set(e.pointerId, local(e));
+    if (pointers.current.size === 2) {
+      // Second finger: abandon whatever the first finger started and pinch-zoom instead.
+      startPinch();
+      return;
+    }
+    if (pointers.current.size > 2) return;
+    const q = toSrc(e);
+    if (e.button === 1 || e.button === 2 || e.shiftKey && p.tool === 'select') {
+      setDrag({ kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
+      return;
+    }
+    switch (p.tool) {
+      case 'select': {
+        const id = hit(q);
+        if (id) {
+          const at = posOf(id)!;
+          p.onSelect(id);
+          setDrag({ kind: 'move', id, dx: q.x - at.x, dy: q.y - at.y, moved: false });
+        } else {
+          const sg = p.overlay?.stairSuggestions.findIndex((s) => inside(q, s.box) && !p.floor.stairs.some((st) => inside(st.p, grow(s.box, Math.max(s.box.w, s.box.h) * 0.3)))) ?? -1;
+          if (sg >= 0 && p.layers.markers) { p.onAcceptStair(p.overlay!.stairSuggestions[sg].center); return; }
+          p.onSelect(null);
+          setDrag({ kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
+        }
+        break;
+      }
+      case 'exit':
+      case 'stair':
+      case 'sign':
+        // Placed on release, so a two-finger pinch never drops a stray marker.
+        setDrag({ kind: 'tap', q, sx: e.clientX, sy: e.clientY });
+        break;
       case 'wall':
       case 'erase':
         setDrag({ kind: 'stroke', mode: p.tool, points: [q] });
@@ -222,6 +255,18 @@ export function PlanCanvas(p: Props) {
   };
 
   const onMove = (e: React.PointerEvent) => {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, local(e));
+    if (drag?.kind === 'pinch') {
+      if (pointers.current.size < 2) return;
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const v0 = drag.v0;
+      const s2 = Math.min(20, Math.max(0.02, (v0.scale * d) / drag.d0));
+      const k = s2 / v0.scale;
+      setView({ scale: s2, ox: mx - (drag.mx - v0.ox) * k, oy: my - (drag.my - v0.oy) * k });
+      return;
+    }
     const q = toSrc(e);
     setCursor(q);
     if (!drag) {
@@ -240,11 +285,18 @@ export function PlanCanvas(p: Props) {
         stairs: f.stairs.map((s) => (s.id === id ? { ...s, p: np } : s)),
       }));
     } else if (drag.kind === 'stroke') setDrag({ ...drag, points: [...drag.points, q] });
+    else if (drag.kind === 'tap' && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 10) setDrag(null);
     else if (drag.kind === 'crop' || drag.kind === 'scale') setDrag({ ...drag, b: q });
   };
 
-  const onUp = () => {
+  const onUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    if (drag?.kind === 'pinch') {
+      if (pointers.current.size === 0) setDrag(null);
+      return;
+    }
     if (!drag) return;
+    if (drag.kind === 'tap') place(drag.q);
     if (drag.kind === 'stroke') {
       const stroke = { points: drag.points, radius: brushPx() };
       p.onChange((f) => (drag.mode === 'wall' ? { ...f, wallAdd: [...f.wallAdd, stroke] } : { ...f, wallErase: [...f.wallErase, stroke] }));
@@ -282,7 +334,7 @@ export function PlanCanvas(p: Props) {
       return { scale: s, ox: size.w / 2 - (size.w / 2 - v.ox) * k, oy: size.h / 2 - (size.h / 2 - v.oy) * k };
     });
 
-  const cursorStyle = drag?.kind === 'pan' ? 'grabbing' : p.tool === 'select' ? 'default' : p.tool === 'wall' || p.tool === 'erase' ? 'none' : 'crosshair';
+  const cursorStyle = drag?.kind === 'pan' || drag?.kind === 'pinch' ? 'grabbing' : p.tool === 'select' ? 'default' : p.tool === 'wall' || p.tool === 'erase' ? 'none' : 'crosshair';
 
   return (
     <div className="plan" ref={wrap}>
@@ -292,6 +344,7 @@ export function PlanCanvas(p: Props) {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onPointerCancel={onUp}
         onPointerLeave={() => setCursor(null)}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
@@ -302,7 +355,7 @@ export function PlanCanvas(p: Props) {
         <button onClick={() => zoom(0.8)} title="Zoom out">−</button>
         <button onClick={fit} title="Fit drawing">Fit</button>
       </div>
-      {cursor && p.floor.mmPerPx && (
+      {cursor && !touch.current && p.floor.mmPerPx && (
         <div className="coords">
           {((cursor.x * p.floor.mmPerPx) / 1000).toFixed(2)} m, {((cursor.y * p.floor.mmPerPx) / 1000).toFixed(2)} m
         </div>
