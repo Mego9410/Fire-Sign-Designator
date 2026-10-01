@@ -1,0 +1,177 @@
+/* 8build design system tokens (from "Design system for 8build"). Archivo is a stand-in for the licensed brand face. */
+/* ============================================================
+   COLORS — 8build
+   Warm near-black "ink", one signal red, a warm stone neutral ramp.
+   Red is used sparingly: rules, numerals, focus, primary CTAs.
+   ============================================================ */
+:root {
+  /* --- Brand red (the single accent) --- */
+  --red-400: #F0343C;  /* lighter — hover on dark surfaces */
+  --red-500: #E5101B;  /* 8build Red — the brand accent */
+  --red-600: #C40C15;  /* darker — pressed / hover on light surfaces */
+
+  /* --- Warm neutral ramp ("stone") ---
+     Low, consistent chroma; hue drifts warm toward the dark end. */
+  --stone-000: #FFFFFF;
+  --stone-050: #F7F5F0;  /* "paper" — primary light background */
+  --stone-100: #EFEDE6;
+  --stone-200: #E1DCD3;
+  --stone-300: #CBC5B9;
+  --stone-400: #ABA598;
+  --stone-500: #877F72;
+  --stone-600: #655E52;
+  --stone-700: #47423A;
+  --stone-800: #2C2823;
+  --stone-900: #1C1915;  /* near-black on dark sections */
+  --ink:       #1A1712;  /* the brand near-black — warm, not pure */
+
+  /* --- Semantic aliases: surfaces --- */
+  --bg-page:        var(--stone-050);
+  --bg-page-white:  var(--stone-000);
+  --bg-inverse:     var(--ink);        /* dark hero / footer sections */
+  --surface-card:   var(--stone-000);
+  --surface-sunken: var(--stone-100);
+  --surface-inverse-raised: var(--stone-800);
+
+  /* --- Semantic aliases: text --- */
+  --text-primary:    var(--ink);
+  --text-secondary:  var(--stone-600);
+  --text-muted:      var(--stone-500);
+  --text-inverse:    var(--stone-050);
+  --text-inverse-secondary: rgba(247, 245, 240, 0.62);
+  --text-accent:     var(--red-500);
+  --text-on-accent:  var(--stone-000);
+
+  /* --- Semantic aliases: lines & borders --- */
+  --border:          var(--stone-200);
+  --border-strong:   var(--stone-300);
+  --border-inverse:  rgba(247, 245, 240, 0.18);
+  --rule-accent:     var(--red-500);   /* the thin red divider motif */
+
+  /* --- Interactive / accent --- */
+  --accent:          var(--red-500);
+  --accent-hover:    var(--red-600);
+  --accent-hover-inverse: var(--red-400);
+  --focus-ring:      var(--red-500);
+
+  /* --- Status (kept minimal, tuned warm) --- */
+  --success: #2E7D53;
+  --warning: #C9861A;
+  --danger:  var(--red-600);
+}
+/* ============================================================
+   TYPOGRAPHY — 8build
+   ONE grotesque family across the whole system (as the brand does).
+   Display = tight tracking, heavy weight. Labels = small UPPERCASE,
+   wide tracking, often in red. Body = regular, comfortable leading.
+   ============================================================ */
+:root {
+  /* --- Families --- */
+  --font-sans: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+
+  /* --- Weights --- */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+  --fw-black: 900;
+
+  /* --- Fluid display sizes (headlines like "Across the UK and Asia") --- */
+  --text-display-xl: clamp(2.75rem, 1.6rem + 5.4vw, 5.5rem);   /* hero */
+  --text-display-lg: clamp(2.25rem, 1.5rem + 3.4vw, 4rem);
+  --text-display-md: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+
+  /* --- Fixed type scale --- */
+  --text-4xl: 3rem;      /* 48 */
+  --text-3xl: 2.25rem;   /* 36 */
+  --text-2xl: 1.75rem;   /* 28 */
+  --text-xl:  1.375rem;  /* 22 */
+  --text-lg:  1.125rem;  /* 18 */
+  --text-md:  1rem;      /* 16 — base body */
+  --text-sm:  0.875rem;  /* 14 */
+  --text-xs:  0.75rem;   /* 12 — labels/captions */
+
+  /* --- Line heights --- */
+  --leading-display: 1.02;  /* tight, packed headlines */
+  --leading-tight:   1.14;
+  --leading-snug:    1.32;
+  --leading-body:    1.55;
+
+  /* --- Letter spacing --- */
+  --tracking-display: -0.02em;  /* pull display type tight */
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0em;
+  --tracking-label:   0.14em;   /* the wide UPPERCASE label motif */
+  --tracking-label-sm: 0.08em;
+
+  /* --- Named roles --- */
+  --role-eyebrow-transform: uppercase;
+}
+/* ============================================================
+   SPACING — 8build
+   4px base grid. Editorial layouts use generous vertical rhythm,
+   so the scale runs long at the top end (section gaps).
+   ============================================================ */
+:root {
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4  */
+  --space-2: 0.5rem;    /* 8  */
+  --space-3: 0.75rem;   /* 12 */
+  --space-4: 1rem;      /* 16 */
+  --space-5: 1.5rem;    /* 24 */
+  --space-6: 2rem;      /* 32 */
+  --space-7: 2.5rem;    /* 40 */
+  --space-8: 3rem;      /* 48 */
+  --space-9: 4rem;      /* 64 */
+  --space-10: 5rem;     /* 80 */
+  --space-11: 6.5rem;   /* 104 */
+  --space-12: 8rem;     /* 128 — section breathing room */
+
+  /* Layout */
+  --container-max: 1280px;
+  --container-narrow: 760px;   /* editorial text column */
+  --gutter: clamp(1.25rem, 4vw, 4rem);
+
+  /* Control sizing */
+  --control-height-sm: 36px;
+  --control-height-md: 44px;   /* min touch target */
+  --control-height-lg: 54px;
+}
+/* ============================================================
+   RADII — 8build
+   Sharp, editorial. Panels & media are square (0). The one
+   rounded shape is the pill CTA/tag. Inputs get a whisper of round.
+   ============================================================ */
+:root {
+  --radius-0: 0;          /* cards, sections, media — square by default */
+  --radius-xs: 2px;       /* inputs, subtle */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-pill: 999px;   /* buttons, tags — the brand's pill motif */
+  --radius-circle: 50%;
+}
+/* ============================================================
+   SHADOWS & MOTION — 8build
+   Restrained. The brand leans on rules, contrast and negative
+   space rather than heavy elevation. Shadows are soft, warm-tinted,
+   used only for genuinely floating UI (menus, dialogs).
+   ============================================================ */
+:root {
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgba(26, 23, 18, 0.06);
+  --shadow-sm: 0 2px 8px rgba(26, 23, 18, 0.07);
+  --shadow-md: 0 10px 28px -12px rgba(26, 23, 18, 0.20);
+  --shadow-lg: 0 24px 60px -20px rgba(26, 23, 18, 0.28);
+
+  /* Focus ring (red, offset) */
+  --ring-accent: 0 0 0 3px rgba(229, 16, 27, 0.28);
+
+  /* Motion — quick, confident, no bounce */
+  --ease-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}
